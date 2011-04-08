@@ -90,6 +90,11 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  /*
+  struct thread *current = running_thread();
+  current->sleepytime = start + ticks;
+  current->status = THREAD_BLOCKED;
+  */
 
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
