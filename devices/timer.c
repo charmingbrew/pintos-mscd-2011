@@ -119,6 +119,7 @@ timer_sleep (int64_t ticks)
   intr_set_level (previous);
 }
 
+/* Comparitive function for sleep times between threads */
 static bool
 sleep_less (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED)
