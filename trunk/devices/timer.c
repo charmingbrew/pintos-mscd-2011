@@ -108,7 +108,7 @@ timer_sleep (int64_t ticks)
   ASSERT(intr_get_level () == INTR_ON);
 
   current->sleepytime = start + ticks;
-  /* printf("start: %lld\nticks: %lld\nsleepytime: %lld\n", start, ticks, current->sleepytime); */
+
   if(!list_empty(&sleep_list))
     list_insert_ordered (&sleep_list, &(current->elem), sleep_less, NULL);
   else
@@ -213,12 +213,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 void
 check_sleep_threads (void)
 {
-  struct thread *temp;
-
   if(!list_empty(&sleep_list)) {
-    temp = list_entry(list_begin(&sleep_list), struct thread, elem);
-    if(temp->sleepytime <= ticks) {
-      /* printf("taco\n"); */
+    if((list_entry(list_begin(&sleep_list), struct thread, elem))->sleepytime <= ticks) {
       thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
     }
   }
