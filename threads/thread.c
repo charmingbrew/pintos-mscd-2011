@@ -78,7 +78,7 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
 
-  return a->priority < b->priority;
+  return a->priority > b->priority;
 }
 
 /* Initializes the threading system by transforming the code
@@ -133,7 +133,7 @@ void
 thread_tick (void)
 {
   struct thread *t = thread_current ();
-  struct thread *competitor = list_entry(list_begin(&ready_list), struct thread, elem);
+  struct thread *competitor;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -145,8 +145,12 @@ thread_tick (void)
   else
     kernel_ticks++;
   /* Enforce priority */
-  if (t->priority < competitor->priority) {
-    intr_yield_on_return ();
+  if (++thread_ticks >= TIME_SLICE) {
+      competitor = list_entry(list_begin(&ready_list), struct thread, elem);
+
+    if (t->priority < competitor->priority) {
+        intr_yield_on_return ();
+     }
   }
 }
 
