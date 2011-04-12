@@ -37,9 +37,6 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
-/* Lock used by thread_create(). */
-static struct lock something_lock;
-
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame
   {
@@ -73,6 +70,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+void thread_priority_clear (void);
 
 bool
 priority_less (const struct list_elem *a_, const struct list_elem *b_,
@@ -81,7 +79,7 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
 
-  return a->priority > b->priority;
+  return *(a->current_priority) > *(b->current_priority);
 }
 
 /* Initializes the threading system by transforming the code
@@ -151,7 +149,7 @@ thread_tick (void)
   if (++thread_ticks >= TIME_SLICE) {
       competitor = list_entry(list_begin(&ready_list), struct thread, elem);
 
-    if (t->priority < competitor->priority) {
+    if (*(t->current_priority) < *(competitor->current_priority)) {
         intr_yield_on_return ();
      }
   }
@@ -267,7 +265,7 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread)
-    if(t->priority > thread_current()->priority)
+    if(*(t->current_priority) > *(thread_current()->priority))
       thread_yield();
 }
 
@@ -364,7 +362,9 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  thread_current ()->pristack[0] = new_priority;
+  if(new_priority > thread_get_priority ())
+    thread_priority_clear ();
   if(thread_current ()->priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority)
     thread_yield();
 }
@@ -373,7 +373,18 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return *(thread_current ()->current_priority);
+}
+
+/* Resets thread's current_priority to base, clears stack */
+void
+thread_priority_clear (void)
+{
+  int i;
+
+  thread_current ()->current_priority = &(thread_current ()->pristack[0]);
+  for(i = 1; i < 9; i++)
+    thread_current ()->pristack[i] = -1;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -482,6 +493,8 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
+  int i;
+
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
@@ -490,7 +503,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->pristack[0] = priority;
+  for(i = 1; i < 9; i++) t->pristack[i] = -1;
+  t->current_priority = &(t->pristack[0]);
   t->sleepytime = 0;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);

@@ -91,9 +91,10 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
-    int64_t sleepytime;
-    struct list_elem allelem;           /* List element for all threads list. */
+    int64_t sleepytime;                 /* Stores timer_sleep time */
+    int pristack[9];                    /* Donated priority stack, base priority at 0 */
+    int *current_priority;              /* Pointer to current priority in pristack */
+    struct list_elem allelem;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
