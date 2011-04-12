@@ -5,6 +5,10 @@
 #include <list.h>
 #include <stdint.h>
 
+bool
+priority_less (const struct list_elem *, const struct list_elem *,
+            void *);
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
