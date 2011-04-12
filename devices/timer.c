@@ -109,17 +109,16 @@ timer_sleep (int64_t ticks)
 
   current->sleepytime = start + ticks;
 
-  if(!list_empty(&sleep_list))
+  // if(!list_empty(&sleep_list))
     list_insert_ordered (&sleep_list, &(current->elem), sleep_less, NULL);
-  else
-    list_push_front(&sleep_list, &(current->elem));
+  // else
+    //list_push_front(&sleep_list, &(current->elem));
 
   previous = intr_set_level (INTR_OFF);
   thread_block ();
   intr_set_level (previous);
 }
 
-/* Comparitive function for sleep times between threads */
 static bool
 sleep_less (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED)

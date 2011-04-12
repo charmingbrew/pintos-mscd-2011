@@ -37,6 +37,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* Lock used by thread_create(). */
+static struct lock something_lock;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame
   {
@@ -263,6 +266,9 @@ thread_unblock (struct thread *t)
   list_insert_ordered (&ready_list, &(t->elem), priority_less, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+  if(thread_current () != idle_thread)
+    if(t->priority > thread_current()->priority)
+      thread_yield();
 }
 
 /* Returns the name of the running thread. */
@@ -359,6 +365,8 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
+  if(thread_current ()->priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority)
+    thread_yield();
 }
 
 /* Returns the current thread's priority. */
