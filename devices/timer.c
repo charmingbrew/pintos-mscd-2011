@@ -213,10 +213,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 void
 check_sleep_threads (void)
 {
-  if(!list_empty(&sleep_list)) {
-    if((list_entry(list_begin(&sleep_list), struct thread, elem))->sleepytime <= ticks) {
-      thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
-    }
+  while(!list_empty(&sleep_list) && (list_entry(list_begin(&sleep_list), struct thread, elem))->sleepytime <= ticks) {
+    thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
   }
 }
 

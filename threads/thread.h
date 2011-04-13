@@ -92,8 +92,8 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleepytime;                 /* Stores timer_sleep time */
-    int pristack[9];                    /* Donated priority stack, base priority at 0 */
-    int *current_priority;              /* Pointer to current priority in pristack */
+    int priority[9];                    /* Donated priority stack, base priority at 0 */
+    int current_priority;               /* Pointer to current priority in pristack */
     struct list_elem allelem;
 
     /* Shared between thread.c and synch.c. */
@@ -143,5 +143,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void priority_pop (struct thread *pop_off);
 
 #endif /* threads/thread.h */
