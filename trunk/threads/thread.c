@@ -80,7 +80,7 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
 
-  return *(a->current_priority) > *(b->current_priority);
+  return a->priority[a->current_priority] > b->priority[b->current_priority];
 }
 
 /* Initializes the threading system by transforming the code
@@ -150,7 +150,7 @@ thread_tick (void)
   if (++thread_ticks >= TIME_SLICE) {
       competitor = list_entry(list_begin(&ready_list), struct thread, elem);
 
-    if (*(t->current_priority) < *(competitor->current_priority)) {
+    if (t->priority[t->current_priority] < competitor->priority[competitor->current_priority]) {
         intr_yield_on_return ();
      }
   }
@@ -266,7 +266,7 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread)
-    if(*(t->current_priority) > *(thread_current()->current_priority))
+    if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority])
       thread_yield();
 }
 
@@ -363,18 +363,20 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->pristack[0] = new_priority;
+  struct thread *temp = list_entry(list_begin(&ready_list), struct thread, elem);
+
+  thread_current ()->priority[0] = new_priority;
   if(new_priority > thread_get_priority ())
     thread_priority_clear ();
-  if(*(thread_current ()->current_priority) < *(list_entry(list_begin(&ready_list), struct thread, elem)->current_priority))
-    thread_yield();
+  if(thread_current ()->priority[thread_current ()->current_priority] < temp->priority[temp->current_priority])
+     thread_yield();
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  return *(thread_current ()->current_priority);
+  return thread_current ()->priority[thread_current ()->current_priority];
 }
 
 /* Donate a thread's priority to another thread (that the first is waiting on) */
@@ -385,7 +387,7 @@ donate_priority (struct thread *donate_to, int new_priority)
 
   /* if a thread tries to donate a priority lower than the current
       priority of the receiving thread, do nothing */
-  if(new_priority <= *(donate_to->current_priority)) {
+  if(new_priority <= donate_to->priority[donate_to->current_priority]) {
   }
   else if(new_priority > 63){
     donate_priority (donate_to, 63);
@@ -393,7 +395,7 @@ donate_priority (struct thread *donate_to, int new_priority)
   else {
     oldlevel = intr_disable ();
     donate_to->current_priority++;
-    *(donate_to->current_priority) = new_priority;
+    donate_to->priority[donate_to->current_priority] = new_priority;
     list_remove (&(donate_to->elem));
     list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
     intr_set_level (oldlevel);
@@ -405,10 +407,10 @@ void
 priority_pop (struct thread *pop_off)
 {
   /* Do nothing if current_priority is the base priority */
-  if(pop_off->current_priority == pop_off->pristack[0]) {
+  if(pop_off->current_priority == 0) {
   }
   else {
-    *(pop_off->current_priority) = -1;
+    pop_off->priority[pop_off->current_priority] = -1;
     pop_off->current_priority--;
   }
 }
@@ -417,11 +419,8 @@ priority_pop (struct thread *pop_off)
 void
 thread_priority_clear (void)
 {
-  int i;
-
-  thread_current ()->current_priority = &(thread_current ()->pristack[0]);
-  for(i = 1; i < 9; i++)
-    thread_current ()->pristack[i] = -1;
+  for(; thread_current()->current_priority > 0; thread_current()->current_priority--)
+    thread_current ()->priority[thread_current()->current_priority] = -1;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -540,9 +539,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->pristack[0] = priority;
-  for(i = 1; i < 9; i++) t->pristack[i] = -1;
-  t->current_priority = &(t->pristack[0]);
+  t->priority[0] = priority;
+  for(i = 1; i < 9; i++) t->priority[i] = -1;
+  t->current_priority = 0;
   t->sleepytime = 0;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
