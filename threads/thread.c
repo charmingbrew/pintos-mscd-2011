@@ -71,6 +71,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_priority_clear (void);
+void donate_priority (struct thread *donate_to, int new_priority);
 
 bool
 priority_less (const struct list_elem *a_, const struct list_elem *b_,
@@ -265,7 +266,7 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread)
-    if(*(t->current_priority) > *(thread_current()->priority))
+    if(*(t->current_priority) > *(thread_current()->current_priority))
       thread_yield();
 }
 
@@ -365,7 +366,7 @@ thread_set_priority (int new_priority)
   thread_current ()->pristack[0] = new_priority;
   if(new_priority > thread_get_priority ())
     thread_priority_clear ();
-  if(thread_current ()->priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority)
+  if(*(thread_current ()->current_priority) < *(list_entry(list_begin(&ready_list), struct thread, elem)->current_priority))
     thread_yield();
 }
 
@@ -374,6 +375,42 @@ int
 thread_get_priority (void)
 {
   return *(thread_current ()->current_priority);
+}
+
+/* Donate a thread's priority to another thread (that the first is waiting on) */
+void
+donate_priority (struct thread *donate_to, int new_priority)
+{
+  enum intr_level oldlevel;
+
+  /* if a thread tries to donate a priority lower than the current
+      priority of the receiving thread, do nothing */
+  if(new_priority <= *(donate_to->current_priority)) {
+  }
+  else if(new_priority > 63){
+    donate_priority (donate_to, 63);
+  }
+  else {
+    oldlevel = intr_disable ();
+    donate_to->current_priority++;
+    *(donate_to->current_priority) = new_priority;
+    list_remove (&(donate_to->elem));
+    list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
+    intr_set_level (oldlevel);
+  }
+}
+
+/* Pop a priority off a thread's priority stack, no return */
+void
+priority_pop (struct thread *pop_off)
+{
+  /* Do nothing if current_priority is the base priority */
+  if(pop_off->current_priority == pop_off->pristack[0]) {
+  }
+  else {
+    *(pop_off->current_priority) = -1;
+    pop_off->current_priority--;
+  }
 }
 
 /* Resets thread's current_priority to base, clears stack */
