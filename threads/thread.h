@@ -92,6 +92,8 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleepytime;                 /* Stores timer_sleep time */
+    int nice;
+    int recent_cpu;
     int priority[9];                    /* Donated priority stack, base priority at 0 */
     int current_priority;               /* Pointer to current priority in pristack */
     struct list_elem allelem;
@@ -112,6 +114,15 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
+/* Load average for the entire system. Is calculated in the thread_tick */
+static int load_average UNUSED;
+
+/* Number of "real" READY threads in the ready queue, including the RUNNING thread
+   this number is required for the load_average of the system. The number is initialized
+   to zero in thread_init(void) and incremented in thread_unblock and decremented in
+   thread_block. */
+static int ready_threads UNUSED;
 
 void thread_init (void);
 void thread_start (void);
@@ -143,6 +154,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+void update_recent_cpu (struct thread *, void *);
 
 void priority_pop (struct thread *pop_off);
 
