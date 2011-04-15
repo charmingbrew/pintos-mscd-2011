@@ -157,5 +157,6 @@ int thread_get_load_avg (void);
 void update_recent_cpu (struct thread *, void *);
 
 void priority_pop (struct thread *pop_off);
+void donate_priority (struct thread *donate_to, int new_priority);
 
 #endif /* threads/thread.h */
