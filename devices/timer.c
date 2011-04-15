@@ -207,7 +207,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   check_sleep_threads ();
   if(thread_mlfqs && (timer_ticks() % TIMER_FREQ) == 0) {
-    load_average = ((FPA_59_60) * load_average / FPA_F) + (FPA_1_60 * ready_threads);
+    load_average = load_calc(load_average);
     thread_foreach(update_recent_cpu, NULL);
   }
   thread_tick ();

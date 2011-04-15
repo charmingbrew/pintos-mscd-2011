@@ -70,7 +70,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void thread_priority_clear (void);
-void donate_priority (struct thread *donate_to, int new_priority);
 void update_recent_cpu (struct thread *, void *);
 int thread_calc_priority (struct thread *t);
 
@@ -88,7 +87,8 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
 void
 update_recent_cpu (struct thread * t, void * aux UNUSED)
 {
-  t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), add_fpa_integer(2*load_average, 1)), t->recent_cpu), t->nice);
+  t->recent_cpu = recent_cpu_calc(t->recent_cpu, load_average, t->nice);
+  /*t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), add_fpa_integer(2*load_average, 1)), t->recent_cpu), t->nice);*/
   /*t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), ((2*load_average) + FPA_F)), t->recent_cpu), t->nice);*/
 }
 /* Initializes the threading system by transforming the code
@@ -158,7 +158,7 @@ thread_tick (void)
     kernel_ticks++;
 
   if(thread_mlfqs && t != idle_thread)
-    add_fpa_integer(t->recent_cpu, 1);
+    t->recent_cpu = add_fpa_integer(t->recent_cpu, 1);
 
   /* Enforce priority */
   if (++thread_ticks >= TIME_SLICE) {
@@ -296,8 +296,12 @@ thread_unblock (struct thread *t)
       ++ready_threads;
     }
 
-    if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority])
-      thread_yield();
+    if(intr_context())
+      intr_yield_on_return();
+    else {
+      if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority])
+        thread_yield();
+    }
   }
 }
 
@@ -429,7 +433,7 @@ donate_priority (struct thread *donate_to, int new_priority)
     list_remove (&(donate_to->elem));
     list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
     intr_set_level (oldlevel);
-  }int_fast64_t
+  }
 }
 
 /* Pop a priority off a thread's priority stack, no return */
@@ -468,7 +472,7 @@ thread_set_nice (int new_nice)
 int
 thread_calc_priority (struct thread *t)
 {
-  return PRI_MAX - (sub_fpa_integer(div_fpa_integer(t->recent_cpu, 4), (t->nice * 2)) >> 14);
+  return PRI_MAX - (conv_from_fpa_nearest(t->recent_cpu) / 4) - (t->nice * 2);
 }
 
 /* Returns the current thread's nice value. */
@@ -482,7 +486,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return (int32_t)conv_from_fpa_nearest(mult_fpa_integer(load_average, 100));
+  return 100 * conv_from_fpa_nearest(load_average);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -490,7 +494,7 @@ int
 thread_get_recent_cpu (void)
 {
   /* Not yet t->recent_cpuimplemented. */
-  return (int32_t)conv_from_fpa_nearest(mult_fpa_integer(thread_current ()->recent_cpu, 100));
+  return 100 * conv_from_fpa_nearest(thread_current ()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
