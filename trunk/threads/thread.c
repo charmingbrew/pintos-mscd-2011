@@ -416,8 +416,7 @@ donate_priority (struct thread *donate_to, int new_priority)
 {
   enum intr_level oldlevel;
 
-  /* if a thread tries to donate a priority lower than the current
-      priority of the receiving thread, do nothing */
+  /* Do nothing if new_priority is less than the current priority of the receiver */
   if(new_priority <= donate_to->priority[donate_to->current_priority]) {
   }
   else if(new_priority > 63){
@@ -430,19 +429,22 @@ donate_priority (struct thread *donate_to, int new_priority)
     list_remove (&(donate_to->elem));
     list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
     intr_set_level (oldlevel);
-  }
+  }int_fast64_t
 }
 
 /* Pop a priority off a thread's priority stack, no return */
 void
 priority_pop (struct thread *pop_off)
 {
+  enum intr_level oldlevel;
   /* Do nothing if current_priority is the base priority */
   if(pop_off->current_priority == 0) {
   }
   else {
+    oldlevel = intr_disable ();
     pop_off->priority[pop_off->current_priority] = -1;
     pop_off->current_priority--;
+    intr_set_level(oldlevel);
   }
 }
 
