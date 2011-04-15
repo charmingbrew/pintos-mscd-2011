@@ -93,7 +93,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleepytime;                 /* Stores timer_sleep time */
     int nice;
-    int recent_cpu;
+    int64_t recent_cpu;                     /* Fixed Point Number */
     int priority[9];                    /* Donated priority stack, base priority at 0 */
     int current_priority;               /* Pointer to current priority in pristack */
     struct list_elem allelem;
@@ -116,13 +116,13 @@ struct thread
 extern bool thread_mlfqs;
 
 /* Load average for the entire system. Is calculated in the thread_tick */
-static int load_average UNUSED;
+int64_t load_average; /* Fixed Point Real Number */
 
 /* Number of "real" READY threads in the ready queue, including the RUNNING thread
    this number is required for the load_average of the system. The number is initialized
    to zero in thread_init(void) and incremented in thread_unblock and decremented in
    thread_block. */
-static int ready_threads UNUSED;
+int64_t ready_threads;
 
 void thread_init (void);
 void thread_start (void);

@@ -53,12 +53,6 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
-/* Number of "real" READY threads in the ready queue, including the RUNNING thread
-   this number is required for the load_average of the system. The number is initialized
-   to zero in thread_init(void) and incremented in thread_unblock and decremented in
-   thread_block. */
-static int ready_threads;
-
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -94,7 +88,8 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
 void
 update_recent_cpu (struct thread * t, void * aux UNUSED)
 {
-  t->recent_cpu = (2*load_average)/(2*load_average + 1) * t->recent_cpu + t->nice;
+  t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), add_fpa_integer(2*load_average, 1)), t->recent_cpu), t->nice);
+  /*t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), ((2*load_average) + FPA_F)), t->recent_cpu), t->nice);*/
 }
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -122,7 +117,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  ready_threads = 0;
+  ready_threads = 1;
   load_average = 0;
 }
 
@@ -155,6 +150,7 @@ thread_tick (void)
   if (t == idle_thread)
     idle_ticks++;
 #ifdef USERPROG
+
   else if (t->pagedir != NULL)
     user_ticks++;
 #endif
@@ -162,12 +158,15 @@ thread_tick (void)
     kernel_ticks++;
 
   if(thread_mlfqs && t != idle_thread)
-    t->recent_cpu++;
+    add_fpa_integer(t->recent_cpu, 1);
+
   /* Enforce priority */
   if (++thread_ticks >= TIME_SLICE) {
     /* For multi-level feedback queue */
     if(thread_mlfqs)
+    {
       t->priority[t->current_priority] = thread_calc_priority(t);
+    }
 
     competitor = list_entry(list_begin(&ready_list), struct thread, elem);
 
@@ -184,7 +183,8 @@ thread_print_stats (void)
           idle_ticks, kernel_ticks, user_ticks);
 }
 
-/* Creates a new kernel thread named NAME with the given initial
+/* Creates a new kernel thread named NAME with the
+given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
    for the new thread, or TID_ERROR if creation fails.
@@ -193,7 +193,8 @@ thread_print_stats (void)
    scheduled before thread_create() returns.  It could even exit
    before thread_create() returns.  Contrariwise, the original
    thread may run for any amount of time before the new thread is
-   scheduled.  Use a semaphore or some other form of
+   scheduled.  Use a semaphore or some other form o
+f
    synchronization if you need to ensure ordering.
 
    The code provided sets the new thread's `priority' member to
@@ -202,6 +203,7 @@ thread_print_stats (void)
 tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
+
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -209,6 +211,7 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
   enum intr_level old_level;
+
 
   ASSERT (function != NULL);
 
@@ -279,6 +282,7 @@ thread_unblock (struct thread *t)
 {
   enum intr_level old_level;
 
+
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
@@ -287,7 +291,11 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread) {
-    ready_threads++;
+    if(thread_mlfqs)
+    {
+      ++ready_threads;
+    }
+
     if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority])
       thread_yield();
   }
@@ -458,7 +466,7 @@ thread_set_nice (int new_nice)
 int
 thread_calc_priority (struct thread *t)
 {
-  return PRI_MAX - ((t->recent_cpu) / 4) - ((t->nice) * 2);
+  return PRI_MAX - (sub_fpa_integer(div_fpa_integer(t->recent_cpu, 4), (t->nice * 2)) >> 14);
 }
 
 /* Returns the current thread's nice value. */
@@ -472,16 +480,15 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return (int32_t)conv_from_fpa_nearest(mult_fpa_integer(load_average, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  /* Not yet t->recent_cpuimplemented. */
+  return (int32_t)conv_from_fpa_nearest(mult_fpa_integer(thread_current ()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -516,7 +523,7 @@ idle (void *idle_started_ UNUSED)
          one to occur, wasting as much as one clock tick worth of
          time.
 
-         See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
+         See [IA32-v2a] "HLT", [IA32-v2br] "STI", and [IA32-v3a]
          7.11.1 "HLT Instruction". */
       asm volatile ("sti; hlt" : : : "memory");
     }

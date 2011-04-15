@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "lib/fpa.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -206,8 +207,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   check_sleep_threads ();
   if(thread_mlfqs && (timer_ticks() % TIMER_FREQ) == 0) {
+    load_average = ((FPA_59_60) * load_average / FPA_F) + (FPA_1_60 * ready_threads);
     thread_foreach(update_recent_cpu, NULL);
-    load_average = (59/60)*load_average + (1/60)*ready_threads;
   }
   thread_tick ();
 }
