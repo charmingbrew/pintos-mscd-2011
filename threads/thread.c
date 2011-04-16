@@ -83,14 +83,29 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   return a->priority[a->current_priority] > b->priority[b->current_priority];
 }
 
+int64_t
+load_calc (int64_t load_in)
+{
+  return (16110 * load_in) / 16384 + 273 * ready_threads;
+}
+
+int64_t
+recent_cpu_calc (struct thread *thread_in)
+{
+  return (((2 * load_average)/(2 * load_average + 16384)) * thread_in->recent_cpu) / 16384 + (thread_in->nice * 16384);
+}
+
 /* Updates the recent CPU time for ALL threads, must be called every CPU second */
 void
 update_recent_cpu (struct thread * t, void * aux UNUSED)
 {
-  t->recent_cpu = recent_cpu_calc(t->recent_cpu, load_average, t->nice);
-  /*t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), add_fpa_integer(2*load_average, 1)), t->recent_cpu), t->nice);*/
-  /*t->recent_cpu = add_fpa_integer(mult_fpa_fpa(div_fpa_fpa((2*load_average), ((2*load_average) + FPA_F)), t->recent_cpu), t->nice);*/
+  /* This works since thread status is enumerated, should be faster than
+      status == THREAD_READY || status == THREAD_RUNNING */
+  if(t->status < THREAD_BLOCKED && t != idle_thread)
+    ready_threads++;
+  t->recent_cpu = recent_cpu_calc(t);
 }
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -117,7 +132,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  ready_threads = 1;
+  ready_threads = 0;
   load_average = 0;
 }
 
@@ -158,7 +173,7 @@ thread_tick (void)
     kernel_ticks++;
 
   if(thread_mlfqs && t != idle_thread)
-    t->recent_cpu = add_fpa_integer(t->recent_cpu, 1);
+    t->recent_cpu = t->recent_cpu + 16384;
 
   /* Enforce priority */
   if (++thread_ticks >= TIME_SLICE) {
@@ -264,7 +279,6 @@ thread_block (void)
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
-  if(thread_current() != idle_thread) --ready_threads;
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -291,11 +305,6 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread) {
-    if(thread_mlfqs)
-    {
-      ++ready_threads;
-    }
-
     if(intr_context())
       intr_yield_on_return();
     else {
@@ -486,7 +495,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return 100 * conv_from_fpa_nearest(load_average);
+  return conv_from_fpa_nearest(100 * load_average);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -494,7 +503,8 @@ int
 thread_get_recent_cpu (void)
 {
   /* Not yet t->recent_cpuimplemented. */
-  return 100 * conv_from_fpa_nearest(thread_current ()->recent_cpu);
+  int i = conv_from_fpa_nearest(100 * (thread_current ()->recent_cpu));
+  return i;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -582,7 +592,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority[0] = priority;
+  if(thread_mlfqs)
+    t->priority[0] = 31;
+  else
+    t->priority[0] = priority;
   for(i = 1; i < 9; i++) t->priority[i] = -1;
   t->current_priority = 0;
   t->sleepytime = 0;

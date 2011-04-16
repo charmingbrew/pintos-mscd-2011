@@ -109,11 +109,7 @@ timer_sleep (int64_t ticks)
   ASSERT(intr_get_level () == INTR_ON);
 
   current->sleepytime = start + ticks;
-
-  // if(!list_empty(&sleep_list))
-    list_insert_ordered (&sleep_list, &(current->elem), sleep_less, NULL);
-  // else
-    //list_push_front(&sleep_list, &(current->elem));
+  list_insert_ordered (&sleep_list, &(current->elem), sleep_less, NULL);
 
   previous = intr_set_level (INTR_OFF);
   thread_block ();
@@ -207,8 +203,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   check_sleep_threads ();
   if(thread_mlfqs && (timer_ticks() % TIMER_FREQ) == 0) {
-    load_average = load_calc(load_average);
     thread_foreach(update_recent_cpu, NULL);
+    load_average = load_calc(load_average);
+    ready_threads = 0;
   }
   thread_tick ();
 }

@@ -158,5 +158,7 @@ void update_recent_cpu (struct thread *, void *);
 
 void priority_pop (struct thread *pop_off);
 void donate_priority (struct thread *donate_to, int new_priority);
+int64_t load_calc (int64_t load_in);
+int64_t recent_cpu_calc(struct thread *thread_in);
 
 #endif /* threads/thread.h */
