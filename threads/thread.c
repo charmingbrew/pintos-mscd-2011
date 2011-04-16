@@ -305,11 +305,13 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread) {
-    if(intr_context())
-      intr_yield_on_return();
-    else {
-      if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority])
+    if(thread_mlfqs) ++ready_threads;
+    if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority]) {
+      if(intr_context())
+        intr_yield_on_return();
+      else
         thread_yield();
+
     }
   }
 }
