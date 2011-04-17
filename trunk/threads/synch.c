@@ -223,6 +223,12 @@ lock_try_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
 
+  if(lock->holder != NULL) {
+    if(thread_current ()->priority[thread_current ()->current_priority] > lock->holder->priority[lock->holder->current_priority]){
+        donate_priority(lock->holder, thread_current ()->priority[thread_current ()->current_priority], lock);
+    }
+  }
+
   success = sema_try_down (&lock->semaphore);
   if (success)
     lock->holder = thread_current ();
@@ -240,9 +246,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  priority_pop(lock->holder, lock);
-
   lock->holder = NULL;
+  priority_pop(thread_current (), lock);
   sema_up (&lock->semaphore);
 }
 
