@@ -16,7 +16,16 @@ conv_to_fpa (int64_t num, int64_t denom )
 int
 conv_from_fpa_nearest (int64_t fpa)
 {
+  if(fpa >= 0)
     return (fpa + (FPA_F / 2)) / FPA_F;
+  else
+    return (fpa - (FPA_F / 2)) / FPA_F;
+}
+
+int
+conv_from_fpa_truncate (int64_t fpa)
+{
+  return fpa / FPA_F;
 }
 
 int64_t

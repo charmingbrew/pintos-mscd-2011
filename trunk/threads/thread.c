@@ -92,7 +92,8 @@ load_calc (int64_t load_in)
 int64_t
 recent_cpu_calc (struct thread *thread_in)
 {
-  return (((2 * load_average)/(2 * load_average + 16384)) * thread_in->recent_cpu) / 16384 + (thread_in->nice * 16384);
+  /* Multiply numerator by fpa_f for fpa division, divide fpa multiplication by fpa_f */
+  return ((((2 * load_average * 16384)/(2 * load_average + 16384)) * thread_in->recent_cpu) / 16384 + (thread_in->nice * 16384));
 }
 
 /* Updates the recent CPU time for ALL threads, must be called every CPU second */
@@ -173,14 +174,14 @@ thread_tick (void)
     kernel_ticks++;
 
   if(thread_mlfqs && t != idle_thread)
-    t->recent_cpu = t->recent_cpu + 16384;
+    t->recent_cpu += 16384;
 
   /* Enforce priority */
   if (++thread_ticks >= TIME_SLICE) {
     /* For multi-level feedback queue */
     if(thread_mlfqs)
     {
-      t->priority[t->current_priority] = thread_calc_priority(t);
+      t->priority[0] = thread_calc_priority(t);
     }
 
     competitor = list_entry(list_begin(&ready_list), struct thread, elem);
@@ -304,7 +305,7 @@ thread_unblock (struct thread *t)
   list_insert_ordered (&ready_list, &(t->elem), priority_less, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
-  if(thread_current () != idle_thread) {
+  if(thread_current () != idle_thread && !thread_mlfqs) {
     if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority]) {
       if(intr_context())
         intr_yield_on_return();
@@ -480,7 +481,7 @@ thread_set_nice (int new_nice)
 int
 thread_calc_priority (struct thread *t)
 {
-  return PRI_MAX - (conv_from_fpa_nearest(t->recent_cpu) / 4) - (t->nice * 2);
+  return PRI_MAX - conv_from_fpa_truncate(t->recent_cpu / 4) - (t->nice * 2);
 }
 
 /* Returns the current thread's nice value. */
@@ -501,9 +502,7 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void)
 {
-  /* Not yet t->recent_cpuimplemented. */
-  int i = conv_from_fpa_nearest(100 * (thread_current ()->recent_cpu));
-  return i;
+  return conv_from_fpa_nearest(100 * thread_current ()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -592,12 +591,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   if(thread_mlfqs)
-    t->priority[0] = 31;
+    t->priority[0] = thread_calc_priority(t);
   else
     t->priority[0] = priority;
   for(i = 1; i < 9; i++) t->priority[i] = -1;
   t->current_priority = 0;
   t->sleepytime = 0;
+  t->recent_cpu = 0;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
