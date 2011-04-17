@@ -431,18 +431,18 @@ donate_priority (struct thread *donate_to, int new_priority)
 {
   enum intr_level oldlevel;
 
-  /* Do nothing if new_priority is less than the current priority of the receiver */
-  if(new_priority <= donate_to->priority[donate_to->current_priority]) {
-  }
-  else if(new_priority > 63){
+  if(new_priority > 63){
     donate_priority (donate_to, 63);
   }
   else {
     oldlevel = intr_disable ();
+
     donate_to->current_priority++;
     donate_to->priority[donate_to->current_priority] = new_priority;
+
     list_remove (&(donate_to->elem));
     list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
+
     intr_set_level (oldlevel);
   }
 }
