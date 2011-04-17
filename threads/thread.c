@@ -462,7 +462,7 @@ priority_pop (struct thread *pop_off, struct lock *lock)
     {
       if(pop_off->prioritylocks[i] == lock)
       {
-        for(j = i; j > pop_off->current_priority; j++)
+        for(j = i; j < pop_off->current_priority; j++)
         {
           pop_off->priority[j] = pop_off->priority[j+1];
           pop_off->prioritylocks[j] = pop_off->prioritylocks[j+1];
