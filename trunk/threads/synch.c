@@ -109,12 +109,13 @@ void
 sema_up (struct semaphore *sema)
 {
   enum intr_level old_level;
-
+  struct thread *t = thread_current();
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
     sema->value++;
+    priority_pop(t);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   }
@@ -239,8 +240,6 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-
-  priority_pop(lock->holder);
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);

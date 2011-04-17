@@ -305,7 +305,6 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   intr_set_level (old_level);
   if(thread_current () != idle_thread) {
-    if(thread_mlfqs) ++ready_threads;
     if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority]) {
       if(intr_context())
         intr_yield_on_return();
@@ -453,9 +452,7 @@ priority_pop (struct thread *pop_off)
 {
   enum intr_level oldlevel;
   /* Do nothing if current_priority is the base priority */
-  if(pop_off->current_priority == 0) {
-  }
-  else {
+  if(pop_off->current_priority != 0) {
     oldlevel = intr_disable ();
     pop_off->priority[pop_off->current_priority] = -1;
     pop_off->current_priority--;
