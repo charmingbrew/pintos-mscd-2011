@@ -95,6 +95,7 @@ struct thread
     int nice;
     int64_t recent_cpu;                     /* Fixed Point Number */
     int priority[9];                    /* Donated priority stack, base priority at 0 */
+    struct lock* prioritylocks[9];      /* Used to keep track of which locks caused donated priorities. */
     int current_priority;               /* Pointer to current priority in pristack */
     struct list_elem allelem;
 
@@ -156,8 +157,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 void update_recent_cpu (struct thread *, void *);
 
-void priority_pop (struct thread *pop_off);
-void donate_priority (struct thread *donate_to, int new_priority);
+void priority_pop (struct thread *pop_off, struct lock *lock);
+void donate_priority (struct thread *donate_to, int new_priority, struct lock *lock);
 int64_t load_calc (int64_t load_in);
 int64_t recent_cpu_calc(struct thread *thread_in);
 
