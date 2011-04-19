@@ -93,9 +93,10 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleepytime;                 /* Stores timer_sleep time */
     int nice;
-    int64_t recent_cpu;                     /* Fixed Point Number */
-    int priority[9];                    /* Donated priority stack, base priority at 0 */
-    struct lock* prioritylocks[9];      /* Used to keep track of which locks caused donated priorities. */
+    int64_t recent_cpu;                 /* Fixed Point Number */
+    int priority[30];                   /* Donated priority stack, base priority at 0 */
+    struct lock* prioritylocks[30];     /* Used to keep track of which locks caused donated priorities. */
+    struct lock* waiting_lock;
     int current_priority;               /* Pointer to current priority in pristack */
     struct list_elem allelem;
 
