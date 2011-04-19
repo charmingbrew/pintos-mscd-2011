@@ -83,6 +83,16 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   return a->priority[a->current_priority] > b->priority[b->current_priority];
 }
 
+bool
+priority_less_or_equal (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED)
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+
+  return a->priority[a->current_priority] >= b->priority[b->current_priority];
+}
+
 int64_t
 load_calc (int64_t load_in)
 {
@@ -434,11 +444,6 @@ donate_priority (struct thread *donate_to, int new_priority, struct lock *lock)
   if(thread_mlfqs){
   }
   else {
-
-    if(donate_to->waiting_lock != NULL){
-      donate_priority(donate_to->waiting_lock->holder, new_priority, donate_to->waiting_lock);
-    }
-
     oldlevel = intr_disable ();
 
     if(donate_to->prioritylocks[donate_to->current_priority] != lock)
@@ -446,9 +451,12 @@ donate_priority (struct thread *donate_to, int new_priority, struct lock *lock)
     donate_to->priority[donate_to->current_priority] = new_priority;
     donate_to->prioritylocks[donate_to->current_priority] = lock;
 
+    if(donate_to->waiting_lock != NULL){
+      donate_priority(donate_to->waiting_lock->holder, new_priority, donate_to->waiting_lock);
+    }
 
     list_remove (&(donate_to->elem));
-    list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
+    list_insert_ordered (&ready_list, &(donate_to->elem), priority_less_or_equal, NULL);
 
     intr_set_level (oldlevel);
   }

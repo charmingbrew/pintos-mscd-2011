@@ -208,6 +208,7 @@ lock_acquire (struct lock *lock)
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  thread_current ()->waiting_lock = 0;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -234,7 +235,7 @@ lock_try_acquire (struct lock *lock)
   success = sema_try_down (&lock->semaphore);
   if (success)
     lock->holder = thread_current ();
-    thread_current ()->waiting_lock = -1;
+    thread_current ()->waiting_lock = 0;
   return success;
 }
 
