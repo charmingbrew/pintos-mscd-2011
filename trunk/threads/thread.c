@@ -431,15 +431,21 @@ donate_priority (struct thread *donate_to, int new_priority, struct lock *lock)
 {
   enum intr_level oldlevel;
 
-  if(new_priority > 63){
-    donate_priority (donate_to, 63, lock);
+  if(thread_mlfqs){
   }
   else {
+
+    if(donate_to->waiting_lock != NULL){
+      donate_priority(donate_to->waiting_lock->holder, new_priority, donate_to->waiting_lock);
+    }
+
     oldlevel = intr_disable ();
 
-    donate_to->current_priority++;
+    if(donate_to->prioritylocks[donate_to->current_priority] != lock)
+      donate_to->current_priority++;
     donate_to->priority[donate_to->current_priority] = new_priority;
     donate_to->prioritylocks[donate_to->current_priority] = lock;
+
 
     list_remove (&(donate_to->elem));
     list_insert_ordered (&ready_list, &(donate_to->elem), priority_less, NULL);
@@ -455,7 +461,7 @@ priority_pop (struct thread *pop_off, struct lock *lock)
   enum intr_level oldlevel;
   int i, j;
   /* Do nothing if current_priority is the base priority */
-  if(pop_off->current_priority != 0) {
+  if(pop_off->current_priority != 0 && !thread_mlfqs) {
     oldlevel = intr_disable ();
     /* Check all entries on the stack */
     for(i = pop_off->current_priority; i > 0; i--)
@@ -608,7 +614,7 @@ init_thread (struct thread *t, const char *name, int priority)
     t->priority[0] = thread_calc_priority(t);
   else
     t->priority[0] = priority;
-  for(i = 1; i < 9; i++) {
+  for(i = 1; i < 30; i++) {
      t->priority[i] = -1;
      t->prioritylocks[i] = -1;
   }

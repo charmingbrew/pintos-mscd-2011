@@ -202,6 +202,7 @@ lock_acquire (struct lock *lock)
   if(lock->holder != NULL) {
     if(thread_current ()->priority[thread_current ()->current_priority] > lock->holder->priority[lock->holder->current_priority]){
         donate_priority(lock->holder, thread_current ()->priority[thread_current ()->current_priority], lock);
+        thread_current ()->waiting_lock = lock;
     }
   }
 
@@ -226,12 +227,14 @@ lock_try_acquire (struct lock *lock)
   if(lock->holder != NULL) {
     if(thread_current ()->priority[thread_current ()->current_priority] > lock->holder->priority[lock->holder->current_priority]){
         donate_priority(lock->holder, thread_current ()->priority[thread_current ()->current_priority], lock);
+        thread_current ()->waiting_lock = lock;
     }
   }
 
   success = sema_try_down (&lock->semaphore);
   if (success)
     lock->holder = thread_current ();
+    thread_current ()->waiting_lock = -1;
   return success;
 }
 
