@@ -121,6 +121,8 @@ sema_up (struct semaphore *sema)
   else
     sema->value++;
   intr_set_level (old_level);
+  if(thread_mlfqs)
+    mlfqs_unblock();
 }
 
 static void sema_test_helper (void *sema_);
@@ -199,7 +201,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if(lock->holder != NULL) {
+  if(lock->holder != NULL && !thread_mlfqs) {
     if(thread_current ()->priority[thread_current ()->current_priority] > lock->holder->priority[lock->holder->current_priority]){
         donate_priority(lock->holder, thread_current ()->priority[thread_current ()->current_priority], lock);
         thread_current ()->waiting_lock = lock;
@@ -225,7 +227,7 @@ lock_try_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if(lock->holder != NULL) {
+  if(lock->holder != NULL && !thread_mlfqs) {
     if(thread_current ()->priority[thread_current ()->current_priority] > lock->holder->priority[lock->holder->current_priority]){
         donate_priority(lock->holder, thread_current ()->priority[thread_current ()->current_priority], lock);
         thread_current ()->waiting_lock = lock;
@@ -251,7 +253,8 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-  priority_pop(thread_current (), lock);
+  if(!thread_mlfqs)
+    priority_pop(thread_current (), lock);
   sema_up (&lock->semaphore);
 }
 
