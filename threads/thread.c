@@ -189,7 +189,7 @@ thread_tick (void)
   /* Enforce priority */
   if (++thread_ticks >= TIME_SLICE) {
     /* For multi-level feedback queue */
-    if(thread_mlfqs)
+    if(thread_mlfqs && t != idle_thread)
     {
       t->priority[0] = thread_calc_priority(t);
     }
@@ -315,13 +315,12 @@ thread_unblock (struct thread *t)
   list_insert_ordered (&ready_list, &(t->elem), priority_less, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
-  if(thread_current () != idle_thread && !thread_mlfqs) {
+  if(thread_current () != idle_thread) {
     if(t->priority[t->current_priority] > thread_current()->priority[thread_current ()->current_priority]) {
       if(intr_context())
         intr_yield_on_return();
       else
         thread_yield();
-
     }
   }
 }
@@ -503,6 +502,13 @@ thread_set_nice (int new_nice)
 {
   thread_current()->nice = new_nice;
   thread_set_priority(thread_calc_priority(thread_current()));
+}
+
+void
+mlfqs_unblock (void)
+{
+  if(thread_current()->priority[0] > list_entry(list_begin(&ready_list), struct thread, elem)->priority[0])
+    thread_yield();
 }
 
 /* Calculates priority for mlfqs */

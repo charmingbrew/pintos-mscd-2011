@@ -162,5 +162,6 @@ void priority_pop (struct thread *pop_off, struct lock *lock);
 void donate_priority (struct thread *donate_to, int new_priority, struct lock *lock);
 int64_t load_calc (int64_t load_in);
 int64_t recent_cpu_calc(struct thread *thread_in);
+void mlfqs_unblock(void);
 
 #endif /* threads/thread.h */
