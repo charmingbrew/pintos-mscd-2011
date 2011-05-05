@@ -3,18 +3,31 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
 
 static void syscall_handler (struct intr_frame *);
 
 void
-syscall_init (void) 
+syscall_init (void)
 {
+  lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f)
 {
-  printf ("system call!\n");
+  int call_number = *((int *)f->esp);
+  printf ("system call! %d", call_number);
   thread_exit ();
 }
+
+//int write (int fd, const void *buffer, unsigned size) {
+//  if (fd == 1) {
+//      putbuf(buffer, size);
+//      return size;
+//  }
+//  else {
+//
+//  }
+//}

@@ -16,6 +16,8 @@
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
+#include "userprog/syscall.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 
@@ -35,20 +37,22 @@ struct command
 tid_t
 process_execute (const char *file_name)
 {
-  char *fn_copy;
+  char *filename_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  filename_copy = palloc_get_page (0);
+  if (filename_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (filename_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, filename_copy);
+
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
+    palloc_free_page (filename_copy);
+
   return tid;
 }
 
@@ -60,25 +64,38 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  char token[17];
+  int g;
 
+  for (g = 0; file_name[g] != ' '; g++)
+    token[g] = file_name[g];
+
+  token[g+1] = '\0';
+  printf("start_process: load name -> %s\n", token);
+  printf("file name -> %s\n", file_name);
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
-
+  success = load (token, &if_.eip, &if_.esp);
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success)
+  if (!success) {
+    printf("Failed to load.\n");
+    palloc_free_page (file_name);
     thread_exit ();
+  }
 
+  if_.esp = (void *)push_parameters(file_name);
+
+  palloc_free_page (file_name);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+  printf("asm language nonsense\n");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -95,6 +112,8 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
+
+  while(child_tid > 0) thread_yield();
   return -1;
 }
 
@@ -132,7 +151,9 @@ push_parameters (char *argv)
     action = list_entry (list_pop_front(&arg_list), struct command, elem);
     token = action->word;
     for(index = strnlen (token, 128); index>=0; index--, stckp--) {
-      asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (token[index]));
+      //printf("copying to stack");
+      memcpy(&token[index], stckp, sizeof(char));
+      //asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (token[index]));
       num_characters++;
     }
   /* Capture the address of the specified
@@ -140,38 +161,46 @@ push_parameters (char *argv)
     action->address = stckp;
     list_push_front(&addr_list, &(action->elem));
   }
-
+  //printf("Pushed items onto the stack\n");
   //fill the remaining space with zeros.
 
   char padding = 0;
-  while (num_characters++ %4 != 0)
-    asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (padding));
+  while (num_characters++ %4 != 0) {
+    memcpy(&padding, stckp, sizeof(char));
+    stckp--;
+  }
+    //asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (padding));
 
   //Insert the wall between args and addresses.
   stckp -= 4;
   int wall = 0;
-  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
+  memcpy(&wall, stckp, sizeof(int));
+  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
 
   /* Place the addresses on the stack */
   while(!list_empty(&addr_list)) {
     stckp -= 4;
     action = list_entry(list_pop_front(&addr_list), struct command, elem);
-    asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (action->address));
+    memcpy(&(action->address), stckp, strlen(action->address));
+    //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (action->address));
     free(action);
   }
 
   /*Put the address of the addresses on the stack */
   char *addr_p = (char *)stckp;
   stckp -= 4;
-  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (addr_p));
+  memcpy(&addr_p, stckp, strlen(addr_p));
+  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (addr_p));
 
   //Number of arguments
   stckp -= 4;
-  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (num_paramaters));
+  memcpy(&num_paramaters, stckp, sizeof(int));
+  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (num_paramaters));
 
   stckp -= 4;
-  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
-
+  memcpy(&wall, stckp, sizeof(int));
+  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
+  printf("returning the stack\n!");
   return stckp;
 }
 /* Free the current process's resources. */
@@ -296,41 +325,21 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct file *file = NULL;
   off_t file_ofs;
   bool success = false;
-  char program_name[128];
-  char arguments[128];
   int i;
-  int index;
-  printf("1: Entering load\n");
+  printf("load filename: %s\n", file_name);
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
     goto done;
   process_activate ();
 
-  /* Get the real program name and split up the arguments
-   * (arguments also includes the program name for the stack)
-   */
-  index = 0;
-  while(file_name[index] != '\0' && file_name[index] != ' ' ) {
-      program_name[index] = file_name[index];
-      arguments[index] = file_name[index];
-      index++;
-  }
-  program_name[index] = '\0';
-  printf("2 program: %s\n", program_name);
-  /* Copy the rest of the file_name to get the arguments */
-  for (; index < strlen(file_name); index ++)
-    arguments[index] = file_name[index];
+  lock_acquire(&filesys_lock);
+  file = filesys_open (file_name);
+  lock_release(&filesys_lock);
 
-  //TODO: CHECK FOR OVERFLOW??
-  arguments[index+1] = '\0';
-  printf("3 args: %s \n", arguments);
-  printf("4 Testing after args\n");
-  /* Open executable file. */
-  file = filesys_open (program_name);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", program_name);
+      printf ("load: %s: open failed\n", file_name);
       goto done;
     }
 
@@ -343,7 +352,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", program_name);
+      printf ("load: %s: error loading executable\n", file_name);
       goto done;
     }
 
@@ -360,6 +369,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
+      printf("size of phdr: %d\n", sizeof phdr);
       switch (phdr.p_type)
         {
         case PT_NULL:
@@ -399,6 +409,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
+
             }
           else
             goto done;
@@ -413,7 +424,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Once the stack is setup, point the esp to
    * the top of the stack...after passing args
    */
-  *esp = push_parameters(arguments);
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -468,7 +478,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      it then user code that passed a null pointer to system calls
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
-  if (phdr->p_vaddr < PGSIZE)
+  if (phdr->p_offset < PGSIZE)
     return false;
 
   /* It's okay. */
@@ -546,6 +556,7 @@ setup_stack (void **esp)
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      printf("Installed page? %d\n", success);
       if (success)
         *esp = PHYS_BASE;
       else
