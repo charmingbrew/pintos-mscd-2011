@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/synch.h"
+#include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -17,8 +18,16 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
-  int call_number = *((int *)f->esp);
-  printf ("system call! %d", call_number);
+  uint32_t *stackpointer = f->esp;
+  hex_dump( (uintptr_t)12, f->esp, PHYS_BASE-(int)f->esp,true);
+  //hex_dump( (uintptr_t)12, stackpointer, PHYS_BASE-(int) stackpointer,true);
+  int call_number = *stackpointer;
+//  void ** buffer = (void **)(stackpointer + 2);
+//  uint32_t *size = stackpointer + 3;
+//  lock_acquire(&filesys_lock);
+//  printf("%s", *buffer);
+//  lock_release(&filesys_lock);
+  printf ("system call! %d\n", call_number);
   thread_exit ();
 }
 
