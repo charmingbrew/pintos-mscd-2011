@@ -87,7 +87,6 @@ start_process (void *file_name_)
   }
 
   if_.esp = (void *)push_parameters(file_name);
-
   palloc_free_page (file_name);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -124,15 +123,16 @@ process_wait (tid_t child_tid UNUSED)
 void *
 push_parameters (char *argv)
 {
-  printf("Entering push_parameters");
+  printf("Entering push_parameters\n");
   int num_paramaters = 0;
   int num_characters = 0; //For padding;
+  int index;
   struct list arg_list, addr_list;
   list_init(&arg_list);
   list_init(&addr_list);
   struct command *bash;
   char *token, *save_ptr;
-  char *stckp = (char *)PHYS_BASE;
+  char *stckp = PHYS_BASE;
 
   //Gather arguments
   for (token = strtok_r(argv, " ", &save_ptr);
@@ -144,16 +144,16 @@ push_parameters (char *argv)
     list_push_front(&arg_list, &(bash->elem));
   }
   printf("number of paramaters %d\n" , num_paramaters);
-  int index;
   struct command *action;
   stckp--;
   while(!list_empty(&arg_list)) {
     action = list_entry (list_pop_front(&arg_list), struct command, elem);
     token = action->word;
+    printf("token : %s\n", token);
     for(index = strnlen (token, 128); index>=0; index--, stckp--) {
       //printf("copying to stack");
-      memcpy(&token[index], stckp, sizeof(char));
-      //asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (token[index]));
+      //memcpy(&token[index], stckp, sizeof(char));
+      asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (token[index]));
       num_characters++;
     }
   /* Capture the address of the specified
@@ -166,7 +166,8 @@ push_parameters (char *argv)
 
   char padding = 0;
   while (num_characters++ %4 != 0) {
-    memcpy(&padding, stckp, sizeof(char));
+    asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (padding));
+    //memcpy(&padding, stckp, sizeof(char));
     stckp--;
   }
     //asm ("movb %1, %0; 1:" : "=m" (*stckp) : "r" (padding));
@@ -174,32 +175,32 @@ push_parameters (char *argv)
   //Insert the wall between args and addresses.
   stckp -= 4;
   int wall = 0;
-  memcpy(&wall, stckp, sizeof(int));
-  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
+  //memcpy(&wall, stckp, sizeof(int));
+  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
 
   /* Place the addresses on the stack */
   while(!list_empty(&addr_list)) {
     stckp -= 4;
     action = list_entry(list_pop_front(&addr_list), struct command, elem);
-    memcpy(&(action->address), stckp, strlen(action->address));
-    //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (action->address));
+    //memcpy(&(action->address), stckp, strlen(action->address));
+    asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (action->address));
     free(action);
   }
 
   /*Put the address of the addresses on the stack */
   char *addr_p = (char *)stckp;
   stckp -= 4;
-  memcpy(&addr_p, stckp, strlen(addr_p));
-  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (addr_p));
+  //memcpy(&addr_p, stckp, strlen(addr_p));
+  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (addr_p));
 
   //Number of arguments
   stckp -= 4;
-  memcpy(&num_paramaters, stckp, sizeof(int));
-  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (num_paramaters));
+  //memcpy(&num_paramaters, stckp, sizeof(int));
+  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (num_paramaters));
 
   stckp -= 4;
-  memcpy(&wall, stckp, sizeof(int));
-  //asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
+  //memcpy(&wall, stckp, sizeof(int));
+  asm ("movl %1, %0; 1:" : "=m" (*stckp) : "r" (wall));
   printf("returning the stack\n!");
   return stckp;
 }
